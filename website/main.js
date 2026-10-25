@@ -130,15 +130,43 @@
       mqTrack.style.transform = `translate3d(${mqX}px,0,0)`;
     }
 
-    if (innerWidth > 860) {
+    if (hsDist > 0) {
       const r = hs.getBoundingClientRect();
-      const span = r.height - innerHeight;
-      const p = Math.min(1, Math.max(0, -r.top / span));
-      const dist = hsTrack.scrollWidth - innerWidth;
-      hsTrack.style.transform = `translate3d(${-p * Math.max(0, dist)}px,0,0)`;
+      const p = Math.min(1, Math.max(0, -r.top / hsDist));
+      hsTrack.style.transform = `translate3d(${-p * hsDist}px,0,0)`;
+      hsBar.style.transform = `scaleX(${p})`;
+      const n = Math.min(hsCards, 1 + Math.floor(p * hsCards));
+      hsCount.textContent = `0${n} / 0${hsCards}`;
     }
     requestAnimationFrame(frame);
   }
+
+  // The method cards pin and slide sideways only when they fit the window
+  // height; otherwise they stay a plain grid. Vertical scroll distance equals
+  // the horizontal distance, so the slide tracks the wheel 1:1.
+  const hsBar = $(".hscroll-bar b");
+  const hsCount = $(".hscroll-count");
+  const hsCards = $$(".card", hsTrack).length;
+  let hsDist = 0;
+  function layoutMethod() {
+    hs.classList.remove("pinned");
+    hs.style.height = "";
+    hsTrack.style.transform = "";
+    hsDist = 0;
+    if (reduced || innerWidth <= 860) return;
+    hs.classList.add("pinned");
+    const room = innerHeight - 72 - 56;
+    const dist = hsTrack.scrollWidth - innerWidth;
+    if (hsTrack.offsetHeight > room || dist <= 0) {
+      hs.classList.remove("pinned");
+      return;
+    }
+    hsDist = dist;
+    hs.style.height = innerHeight + dist + "px";
+  }
+  layoutMethod();
+  addEventListener("resize", layoutMethod);
+  if (document.fonts) document.fonts.ready.then(layoutMethod);
   requestAnimationFrame(frame);
 
   // ---------- hero: live implicit diffusion ----------

@@ -60,7 +60,6 @@ body {
   font-family: var(--body);
   font-size: 16px;
   line-height: 1.55;
-  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -399,28 +398,44 @@ section { position: relative; }
 .demo-stats b { display: block; font: 800 28px/1 var(--display); letter-spacing: -0.03em; }
 .demo-stats small { color: var(--ink-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
 
-/* Horizontal pinned strategies */
-.hscroll { height: 340vh; }
-.hscroll-sticky { position: sticky; top: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; justify-content: center; padding-top: 64px; }
-.hscroll-head { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 40px; }
-.hscroll-track { display: flex; gap: 24px; padding-left: var(--gutter); padding-right: var(--gutter); will-change: transform; }
+/* Method cards: a plain grid by default; main.js adds .pinned (sticky,
+   sliding sideways with scroll) only when the cards fit the window height */
+.hscroll { padding-block: clamp(80px, 11vw, 160px); }
+.hscroll-track {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 24px;
+  padding: 0 var(--gutter);
+  max-width: 1440px;
+  margin: 0 auto;
+}
+.hscroll-intro { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: end; gap: 24px; flex-wrap: wrap; margin-bottom: 16px; }
+.hscroll-bar { display: none; }
+
+.hscroll.pinned { padding: 0; }
+.hscroll.pinned .hscroll-sticky { position: sticky; top: 0; height: 100vh; overflow: hidden; display: flex; align-items: center; padding: 72px 0 56px; }
+.hscroll.pinned .hscroll-track { display: flex; width: max-content; max-width: none; margin: 0; will-change: transform; }
+.hscroll.pinned .hscroll-intro { flex: 0 0 clamp(300px, 32vw, 500px); flex-direction: column; align-items: flex-start; justify-content: space-between; margin: 0; padding: 4px 3vw 4px 0; }
+.hscroll.pinned .card { flex: 0 0 clamp(290px, 26vw, 390px); }
+.hscroll.pinned .hscroll-bar { display: flex; align-items: center; gap: 16px; position: absolute; left: var(--gutter); right: var(--gutter); bottom: 20px; color: var(--snow-3); }
+.hscroll-bar i { flex: 1; height: 1.5px; background: var(--night-line); position: relative; }
+.hscroll-bar b { position: absolute; inset: 0; background: var(--snow); transform-origin: 0 50%; transform: scaleX(0); }
+
 .card {
-  flex: 0 0 min(440px, 80vw);
   border: 1.5px solid var(--line);
-  padding: 28px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-height: 460px;
+  gap: 12px;
   background: var(--night-2);
 }
 .card .tag { display: flex; justify-content: space-between; font: 500 12px var(--mono); color: var(--snow-3); }
-.card h3 { margin: 0; }
-.card p { color: var(--snow-2); margin: 0; font-size: 15px; }
-.card dl { margin: auto 0 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; border-top: 1px solid var(--line); padding-top: 16px; }
+.card h3 { margin: 0; font-size: clamp(22px, 2vw, 28px); }
+.card p { color: var(--snow-2); margin: 0; font-size: 14px; line-height: 1.5; }
+.card dl { margin: auto 0 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; }
 .card dt { color: var(--snow-3); text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; align-self: center; }
 .card dd { margin: 0; font-family: var(--mono); }
-.card svg { width: 100%; height: auto; }
+.card svg { height: 96px; width: auto; max-width: 100%; align-self: center; margin: 4px 0; }
 
 /* Tables */
 .tbl-wrap { overflow-x: auto; margin-top: 16px; }
@@ -597,12 +612,10 @@ td.best { font-weight: 800; }
   .step .chart { grid-column: 1 / -1; }
   .what { grid-template-columns: 1fr; }
   .demo-stats { grid-template-columns: 1fr 1fr; }
-  .hscroll { height: auto; }
-  .hscroll-sticky { position: static; height: auto; padding-block: 80px; }
-  .hscroll-track { flex-direction: column; transform: none !important; }
-  .card { flex-basis: auto; min-height: 0; }
 }
 
 /* grid children must be allowed to shrink below their content (code blocks, svgs) */
 .two > *, .figs-2 > *, .about-grid > *, .block-head > *, .hero-grid > *, .hero-copy > *, .cols-3 > *, .foot-grid > *, .demo > *, .step > * { min-width: 0; }
+/* clip (not hidden) on the root only: hidden on body would make body a scroll
+   container and break the sticky method section */
 html { overflow-x: clip; }

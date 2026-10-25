@@ -64,7 +64,3 @@ The saved profiler output in `results/` records the GPU and toolchain used for t
 5. Run `python -m harness_ml.pipeline --manifest solvers.json`.
 
 The pipeline expects 180 successful runs. It audits coverage and convergence before generating plots, an ML evaluation, and `report/experiment_summary.md`. No synthetic timings are included as project results. See [the harness guide](harness_ml/README.md) for command details and [the results schema](results/SCHEMA.md) for output columns.
-
-## Limits
-
-The block-asynchronous solver is not present in this repository yet. The current standalone CUDA solver also uses plain neighbour averaging, whereas the parameterized experiment includes `r` and source terms. Results and ML claims should be generated only after those implementations are integrated and validated on the same device.

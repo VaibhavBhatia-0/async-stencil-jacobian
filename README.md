@@ -1,6 +1,6 @@
 # Async Stencil Jacobian
 
-A personal CUDA and Python project by Vaibhav Bhatia exploring synchronization choices for a two-dimensional Jacobi stencil. The repository contains a standalone synchronous CUDA solver, a CPU reference, experiment tooling, profiling captures, and an offline strategy-selection workflow.
+A CUDA and Python project exploring synchronization choices for a two-dimensional Jacobi stencil. The repository contains a standalone synchronous CUDA solver, a CPU reference, experiment tooling, profiling captures, and an offline strategy-selection workflow.
 
 ## Current status
 

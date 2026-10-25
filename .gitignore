@@ -16,4 +16,5 @@ solvers.json
 # OS / editor
 .DS_Store
 .vscode/
+.claude/
 jacobi

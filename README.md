@@ -8,6 +8,7 @@ A CUDA and Python project exploring synchronization choices for a two-dimensiona
 - `harness_ml/` defines a separate, parameterized diffusion experiment with deterministic inputs, a CPU reference, data validation, plots, and a decision-tree selector.
 - The current CUDA solver does **not** implement the harness equation or its command-line interface. A compatible synchronous executable and a block-asynchronous executable are needed before the full experiment can run.
 - `results/` contains existing synchronous profiling captures. It does not contain a complete sync-versus-async dataset or validated ML conclusions.
+- `website/` is a static presentation with report-derived values embedded in `website/data.js`. The full raw dataset and corresponding CUDA kernels are not included here, so those values cannot be reproduced from this checkout alone.
 
 ## Numerical experiment
 
@@ -27,6 +28,7 @@ The intended comparison is time to convergence, iteration count, residual decay,
 | `harness_ml/` | CPU reference, input generation, experiment driver, audits, plots, and ML tools |
 | `results/` | Result schema and saved synchronous profiling captures |
 | `report/` | Generated experiment summary after a complete run |
+| `website/` | Static website with HTML, CSS, JavaScript, and embedded report data |
 
 ## Setup and checks
 
@@ -64,3 +66,7 @@ The saved profiler output in `results/` records the GPU and toolchain used for t
 5. Run `python -m harness_ml.pipeline --manifest solvers.json`.
 
 The pipeline expects 180 successful runs. It audits coverage and convergence before generating plots, an ML evaluation, and `report/experiment_summary.md`. No synthetic timings are included as project results. See [the harness guide](harness_ml/README.md) for command details and [the results schema](results/SCHEMA.md) for output columns.
+
+## Website deployment
+
+The website needs no build step or environment variables. For Vercel, import this GitHub repository, set **Root Directory** to `website`, choose **Other** as the framework, and leave the build and output overrides unset. Vercel will serve `website/index.html` at the site root. The production branch is `main`, so later pushes to `main` will deploy automatically.

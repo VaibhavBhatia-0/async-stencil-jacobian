@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Async Stencil Jacobi</title>
+  <meta name="description" content="When does relaxing synchronization speed up a GPU Jacobi stencil? A controlled study separating block-asynchronous relaxation from temporal locality on an RTX 5050 Laptop GPU, by Vaibhav Bhatia." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Cpath d='M16 5v22M5 16h22' stroke='%23fff' stroke-width='4'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="progress" aria-hidden="true"></div>
+
+  <!-- ============ NAV ============ -->
+  <header class="nav">
+    <a class="logo" href="#top">Async&nbsp;Stencil</a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#top" class="active">Home</a>
+      <a href="#problem">Problem</a>
+      <a href="#method">Method</a>
+      <a href="#results">Results</a>
+      <a href="#selector">Selector</a>
+      <a href="#conclusion">Conclusion</a>
+    </nav>
+    <button class="menu-btn" aria-expanded="false" aria-controls="menu"><b><span></span></b>Menu</button>
+  </header>
+
+  <div class="menu" id="menu" aria-hidden="true">
+    <div class="menu-top">
+      <span class="logo">Async&nbsp;Stencil</span>
+      <button class="menu-btn menu-close">Close&nbsp;✕</button>
+    </div>
+    <ol>
+      <li><a href="#problem">The problem</a></li>
+      <li><a href="#method">Method</a></li>
+      <li><a href="#results">In cache</a></li>
+      <li><a href="#beyond">Beyond L2</a></li>
+      <li><a href="#selector">Selector</a></li>
+      <li><a href="#conclusion">Conclusion</a></li>
+    </ol>
+    <div class="menu-foot eyebrow">
+      <span>Vaibhav Bhatia</span>
+      <a href="https://github.com/VaibhavBhatia-0/async-stencil-jacobian" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+  </div>
+
+  <main id="top">
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="wrap">
+        <div class="hero-grid">
+          <figure class="hero-figure rv" style="margin:0">
+            <canvas id="hero-canvas" width="192" height="256" aria-label="Live heat diffusion: an implicit Jacobi solve running in your browser"></canvas>
+            <figcaption class="eyebrow">Live implicit diffusion.<br />Solved in your browser.</figcaption>
+          </figure>
+          <div class="hero-copy">
+            <p class="eyebrow rv">GPU stencil<br />research<br />project</p>
+            <div>
+              <h1 class="display h1 split"><span class="ln"><span>Less waiting.</span></span><span class="ln"><span>More sweeps.</span></span><span class="ln"><span>Who wins?</span></span></h1>
+              <a class="btn rv rv-d2" href="#results"><span>Explore results</span><i>→</i></a>
+            </div>
+            <p class="eyebrow side-r rv rv-d1">Synchronous vs block-async<br />Jacobi on one RTX 5050<br />512² → 18432² grids</p>
+          </div>
+        </div>
+        <p class="eyebrow rv" style="margin:28px 0 0">Separating synchronization<br />from temporal locality.</p>
+        <h2 class="giant" data-parallax="-0.08" aria-hidden="true">Jacobi</h2>
+      </div>
+    </section>
+
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>Synchronous</span><span>Block-async D1–D8</span><span>Temporal blocking T2–T8</span><span>G-fb feedback</span><span>32 MiB L2</span><span>Bit-for-bit validated</span><span>Decision tree</span>
+        <span>Synchronous</span><span>Block-async D1–D8</span><span>Temporal blocking T2–T8</span><span>G-fb feedback</span><span>32 MiB L2</span><span>Bit-for-bit validated</span><span>Decision tree</span>
+      </div>
+    </div>
+
+    <!-- ============ ABOUT (dark) ============ -->
+    <section class="dark pad" id="about">
+      <div class="wrap">
+        <div class="about-grid">
+          <div class="rv">
+            <div class="rule"></div>
+            <p class="stat-big"><span data-count="1.3" data-dec="1">1.3</span>×</p>
+            <p class="eyebrow">Speedup from exact temporal<br />blocking once the grid leaves L2</p>
+            <h2 class="giant" data-parallax="0.05" aria-hidden="true">Async?</h2>
+          </div>
+          <div class="about-right">
+            <p class="eyebrow rv" style="margin:0 0 20px">About the project</p>
+            <h2 class="display h2 split"><span class="ln"><span>A speedup is not</span></span><span class="ln"><span>evidence for</span></span><span class="ln"><span>asynchrony.</span></span></h2>
+            <p class="rv">Block-asynchronous iterative methods relax global synchronization, trading cheaper iterations for extra iterations caused by stale data. I examined this trade-off for a five-point Jacobi solver of an implicit diffusion step on a single consumer GPU, an NVIDIA GeForce RTX 5050 Laptop GPU, on grids from 512² to 18432².</p>
+            <p class="rv">The block-asynchronous kernel does two things at once: it tolerates stale data, and it reads each grid point from memory only once per D sweeps. The second effect is temporal locality, which an exact, fully synchronous method can also exploit. This project separates the two.</p>
+            <a class="btn rv" href="#problem" style="margin-top:12px"><span>Learn more</span><i>→</i></a>
+          </div>
+        </div>
+
+        <div class="what">
+          <p class="eyebrow rv">What I<br />did</p>
+          <h3 class="display split"><span class="ln"><span>Measure.</span></span><span class="ln"><span>Separate.</span></span><span class="ln"><span>Predict.</span></span></h3>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi rv"><b><span data-count="288">288</span></b><span class="eyebrow">Main-matrix runs, all converged</span></div>
+          <div class="kpi rv rv-d1"><b>50/50</b><span class="eyebrow">Bitwise-identical grid checks</span></div>
+          <div class="kpi rv rv-d2"><b><span data-count="24">24</span>–45%</b><span class="eyebrow">Of sync time spent on host convergence checks</span></div>
+          <div class="kpi rv rv-d3"><b>14/16</b><span class="eyebrow">Held-out configs where the tree picks the best method</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PROBLEM ============ -->
+    <section class="pad" id="problem">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="eyebrow">The problem<span class="num">01 / 07</span></p>
+          <h2 class="display h2 split"><span class="ln"><span>One implicit diffusion step,</span></span><span class="ln"><span>a five-point stencil.</span></span></h2>
+        </div>
+        <div class="two">
+          <div class="rv">
+            <p class="eyebrow" style="margin:0 0 14px">Jacobi update with uⁿ held fixed</p>
+            <div class="equation">
+              u<sup>(k+1)</sup> =
+              <span class="frac"><span>uⁿ + r·Σu<sup>(k)</sup> + Δt·f</span><span>1 + 4r</span></span>
+              <br /><span style="color:var(--ink-3)">r = αΔt / h² · Σu = N + S + E + W</span>
+            </div>
+            <div class="prose">
+              <p>The transient equation ∂u/∂t = α∇²u + f is discretized on an N×N unit square. Each backward-Euler step solves a linear system; Jacobi sweeps it to convergence. The top boundary is held at <strong>100</strong>, the others at <strong>0</strong>, and the source is either a point at the centre or a Gaussian with σ = N/16. Each run solves <strong>ten consecutive time steps</strong> in float32.</p>
+              <p>The iteration matrix has spectral radius below 4r/(1+4r), so the number of sweeps grows with <strong>r</strong> but not with N: about <strong>35, 226 and 1417</strong> sweeps per step for r = 1, 10 and 100.</p>
+              <p>A step converges when the relative true residual ρ = ‖b − Au‖∞ / ‖b‖∞ drops below <strong>10⁻⁵</strong>, checked every <strong>M = 8</strong> sweeps. Because A is strictly diagonally dominant, the residual directly bounds the solution error. It is computed in a <strong>difference form</strong> that avoids float32 cancellation, which the naive form underestimated by about 2.5× at r = 100.</p>
+            </div>
+          </div>
+          <div>
+            <div class="rq rv"><b>RQ1</b><p>Can relaxing global synchronization reduce time to convergence despite the extra iterations it causes, and under which conditions?</p></div>
+            <div class="rq rv rv-d1"><b>RQ2</b><p>Can the best synchronization strategy be predicted from features known before execution?</p></div>
+            <p class="note rv"><b>A mistake worth sharing.</b> The first solver used the current iterate in place of uⁿ. It still converged, but to the steady-state Poisson problem, needing 3.7×10⁵ sweeps at N = 512 and 1.25×10⁶ at N = 1024, a count that grows as O(N²). Fixing it changed iteration counts by three orders of magnitude and made r a meaningful parameter.</p>
+          </div>
+        </div>
+
+        <div class="versus rv">
+          <div>
+            <p class="eyebrow">Synchronous</p>
+            <h3 class="display h3" style="margin:12px 0">Wait for everyone</h3>
+            <p style="color:var(--ink-2);margin:0">Each sweep is its own kernel launch. No block may start sweep k+1 until every block has finished sweep k.</p>
+            <ul><li data-s="+">Fresh data, fewest iterations</li><li data-s="−">A global barrier every sweep</li></ul>
+          </div>
+          <div>
+            <p class="eyebrow">Block-asynchronous</p>
+            <h3 class="display h3" style="margin:12px 0">Keep sweeping locally</h3>
+            <p style="color:var(--ink-2);margin:0">A block sweeps its tile D times in shared memory, using frozen halo values from its neighbours, before anyone exchanges data.</p>
+            <ul><li data-s="+">Far fewer global synchronizations</li><li data-s="−">Stale neighbour values mean extra sweeps</li></ul>
+          </div>
+        </div>
+        <p class="formula rv">S = T<sub>sync</sub> / T<sub>x</sub> = 1 / (c · s)  —  c: cost per sweep · s: sweep ratio</p>
+
+        <!-- Interactive demo -->
+        <div class="demo rv" id="demo">
+          <div class="demo-side">
+            <div>
+              <p class="eyebrow" style="margin:0 0 6px">Try it · staleness demo</p>
+              <p style="margin:0;color:var(--ink-2);font-size:14px">The same equations, re-implemented in JavaScript on a 96² grid with 32×8 tiles. Pick r and D; the page runs ten time steps and compares the last one for each strategy.</p>
+            </div>
+            <div class="ctrl"><label class="eyebrow">Coupling r</label><div class="seg" data-ctrl="r"><button aria-pressed="false" data-v="1">r = 1</button><button aria-pressed="true" data-v="10">r = 10</button><button aria-pressed="false" data-v="100">r = 100</button></div></div>
+            <div class="ctrl"><label class="eyebrow">Block-async depth D</label><div class="seg" data-ctrl="D"><button aria-pressed="false" data-v="1">D1</button><button aria-pressed="false" data-v="2">D2</button><button aria-pressed="false" data-v="4">D4</button><button aria-pressed="true" data-v="8">D8</button></div></div>
+            <div class="ctrl"><label class="eyebrow">Source</label><div class="seg" data-ctrl="src"><button aria-pressed="true" data-v="gauss">Gaussian</button><button aria-pressed="false" data-v="point">Point</button></div></div>
+            <figure style="margin:0"><canvas id="demo-field" width="96" height="96" aria-label="Temperature field after ten time steps"></canvas><figcaption style="margin-top:8px;font-size:12px;color:var(--ink-3)">Field after 10 time steps, log scale, 32×8 tile grid.</figcaption></figure>
+          </div>
+          <div class="demo-main">
+            <div class="fig-head">
+              <h3>Residual per check window, time step 10</h3>
+              <div class="legend" id="demo-legend"></div>
+            </div>
+            <div id="demo-chart"></div>
+            <div class="demo-stats">
+              <div><b id="ds-sync">–</b><small>Sync sweeps</small></div>
+              <div><b id="ds-async">–</b><small>Block-async sweeps</small></div>
+              <div><b id="ds-ratio">–</b><small>Sweep ratio s</small></div>
+              <div><b id="ds-launch">–</b><small>Global syncs saved</small></div>
+            </div>
+            <p style="margin:0;font-size:13px;color:var(--ink-3)">CPU float64, illustrative only. The ratio s matches the GPU closely because it is set by the numerics, not by N; whether fewer launches pay for extra sweeps is set by the hardware, which the GPU results below answer.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ METHOD (horizontal) ============ -->
+    <section class="dark hscroll" id="method">
+      <div class="hscroll-sticky">
+        <div class="wrap hscroll-head">
+          <div>
+            <p class="eyebrow" style="margin:0 0 14px">Method · 02 / 07</p>
+            <h2 class="display h2">Four ways<br />to sweep a grid.</h2>
+          </div>
+          <p class="eyebrow" style="max-width:34ch;margin:0">All kernels share one arithmetic definition and are validated bit for bit against a NumPy reference, down to identical sweep counts.</p>
+        </div>
+        <div class="hscroll-track">
+          <article class="card">
+            <div class="tag"><span>01</span><span>sync</span></div>
+            <h3 class="display h3">Synchronous baseline</h3>
+            <svg viewBox="0 0 200 90" aria-hidden="true"><g fill="none" stroke="#77766f"><rect x="10" y="10" width="180" height="60"/></g><g fill="#3987e5"><rect x="12" y="12" width="40" height="13"/><rect x="56" y="12" width="40" height="13"/><rect x="100" y="12" width="40" height="13"/><rect x="144" y="12" width="44" height="13"/></g><g stroke="#f4f3ef" stroke-width="1.5"><line x1="10" y1="80" x2="190" y2="80"/></g><text x="100" y="89" fill="#b9b8b1" font-size="8" text-anchor="middle">kernel boundary = global barrier, every sweep</text></svg>
+            <p>One thread per point in 32×8 blocks, ping-pong buffers. A reduction kernel computes both residual norms every M sweeps with warp shuffles and copies them to the host, which decides whether to continue.</p>
+            <p>Strengthened later with a <b>fused right-hand side</b> (uⁿ + Δt·f computed once per step), cutting traffic from 16 to 12 bytes per point per sweep.</p>
+            <dl><dt>Sweeps/launch</dt><dd>1</dd><dt>Staleness</dt><dd>0</dd><dt>Exact</dt><dd>yes</dd></dl>
+          </article>
+          <article class="card">
+            <div class="tag"><span>02</span><span>D1 – D8</span></div>
+            <h3 class="display h3">Block-asynchronous</h3>
+            <svg viewBox="0 0 200 90" aria-hidden="true"><defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="#d95926" stroke-width="2"/></pattern></defs><rect x="60" y="8" width="80" height="64" fill="url(#hatch)"/><rect x="66" y="14" width="68" height="52" fill="#3987e5"/><text x="100" y="44" fill="#050505" font-size="10" font-weight="700" text-anchor="middle">D sweeps</text><text x="100" y="86" fill="#b9b8b1" font-size="8" text-anchor="middle">1-cell halo, frozen for the whole launch</text></svg>
+            <p>After Anzt et al.: each block loads its tile plus a one-cell halo into shared memory and sweeps it D ∈ {1, 2, 4, 8} times with <code>__syncthreads()</code> between sweeps. Values read across a tile edge can be up to D−1 sweeps old.</p>
+            <p>With D = 1 it reproduces the synchronous iterates exactly.</p>
+            <dl><dt>Sweeps/launch</dt><dd>D</dd><dt>Staleness</dt><dd>≤ D−1</dd><dt>Exact</dt><dd>D1 only</dd></dl>
+          </article>
+          <article class="card">
+            <div class="tag"><span>03</span><span>G-asc · G-desc · G-fb</span></div>
+            <h3 class="display h3">Residual-guided</h3>
+            <svg viewBox="0 0 200 90" aria-hidden="true"><polyline fill="none" stroke="#3987e5" stroke-width="2" points="10,70 40,70 40,55 70,55 70,40 100,40 100,25 130,25 130,40 155,40 155,25 190,25"/><g fill="#b9b8b1" font-size="8"><text x="4" y="73" text-anchor="end">1</text><text x="194" y="22">8</text></g><text x="100" y="86" fill="#b9b8b1" font-size="8" text-anchor="middle">G-fb doubles D while progress/ms holds up</text></svg>
+            <p>D is just a kernel argument, so it can change between launches for free. <b>G-asc</b> and <b>G-desc</b> step D up or down as ρ crosses 10⁻², 10⁻³, 10⁻⁴ (latched, to stop oscillation).</p>
+            <p><b>G-fb</b> is a hill-climbing controller: start at D = 1, measure −ln(ρₖ/ρₖ₋₁) per ms, double D while the rate holds, halve it on a &gt;10% drop. A settling window skips the residual bump right after each change.</p>
+            <dl><dt>Sweeps/launch</dt><dd>1–8, adaptive</dd><dt>Staleness</dt><dd>≤ 7</dd><dt>Exact</dt><dd>no</dd></dl>
+          </article>
+          <article class="card">
+            <div class="tag"><span>04</span><span>T2 – T8</span></div>
+            <h3 class="display h3">Exact temporal blocking</h3>
+            <svg viewBox="0 0 200 90" aria-hidden="true"><rect x="44" y="4" width="112" height="72" fill="#199e70" opacity=".35"/><rect x="52" y="10" width="96" height="60" fill="#199e70" opacity=".55"/><rect x="66" y="18" width="68" height="44" fill="#199e70"/><text x="100" y="44" fill="#050505" font-size="10" font-weight="700" text-anchor="middle">D sweeps</text><text x="100" y="88" fill="#b9b8b1" font-size="8" text-anchor="middle">D-cell halo, recomputed: no stale data</text></svg>
+            <p>The ghost-zone technique of Meng &amp; Skadron. Each block loads a halo D cells wide; in sweep s it updates only points at least s+1 cells from the edge. After D sweeps the tile holds exactly what D synchronous sweeps would produce.</p>
+            <p>Same data reuse as block-async, <b>zero staleness</b>. It pays with redundant work: a Tx×Ty tile loads (Tx+2D)(Ty+2D) points.</p>
+            <dl><dt>Sweeps/launch</dt><dd>D</dd><dt>Staleness</dt><dd>0</dd><dt>Exact</dt><dd>yes</dd></dl>
+          </article>
+          <article class="card">
+            <div class="tag"><span>05</span><span>Validation</span></div>
+            <h3 class="display h3">Bit for bit</h3>
+            <p>Round-to-nearest intrinsics (<code>__fadd_rn</code>, <code>__fmul_rn</code>, <code>__fdiv_rn</code>) fix the operation order and prevent fused multiply-adds, confirmed in the generated PTX. The GPU performs exactly the same float32 operations as the NumPy reference, so any difference means a bug, not rounding.</p>
+            <p>Grids like N = 70 leave partial tiles at the edges to catch boundary bugs.</p>
+            <dl><dt>Bitwise grids</dt><dd>50 / 50</dd><dt>Sweep counts</dt><dd>23 / 23</dd><dt>Controller</dt><dd>C++ = Python on 6000+ inputs</dd></dl>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SETUP ============ -->
+    <section class="pad">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="eyebrow">Setup<span class="num">03 / 07</span></p>
+          <h2 class="display h2 split"><span class="ln"><span>One laptop GPU.</span></span><span class="ln"><span>Two experiment rounds.</span></span></h2>
+        </div>
+        <div class="two">
+          <div class="tbl-wrap rv" style="margin:0">
+            <table>
+              <tbody>
+                <tr><td>GPU</td><td>RTX 5050 Laptop · CC 12.0 · 20 SMs · 8 GB</td></tr>
+                <tr><td>L2 cache</td><td><b>32 MiB</b></td></tr>
+                <tr><td>DRAM bandwidth</td><td>≈ 384 GB/s nominal (128-bit bus)</td></tr>
+                <tr><td>Toolkit</td><td>CUDA 13.3 · driver 610.57.04</td></tr>
+                <tr><td>Flags</td><td class="mono">-O3 -arch=sm_120 --fmad=false</td></tr>
+                <tr><td>Host</td><td>Fedora 44 · Python 3.14 · GCC 16.2</td></tr>
+                <tr><td>Grid sizes N</td><td>512, 1024 · extensions 1024–18432</td></tr>
+                <tr><td>Coupling r</td><td>1, 10, 100</td></tr>
+                <tr><td>Time steps</td><td>10 per run · ρ &lt; 10⁻⁵ · M = 8</td></tr>
+                <tr><td>Repeats</td><td>3 (main) · 5 (N ≤ 2048) · 3 (N ≥ 4096)</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="prose rv rv-d1">
+            <p><strong>Main matrix.</strong> N ∈ {512, 1024}, both sources, three values of r and eight strategies with three repeats: 288 runs, all of which met the tolerance.</p>
+            <p><strong>Extension experiments.</strong> Designed afterwards to explain the main matrix: a check-interval diagnostic, tile-shape and overlapped-check tests, the fused right-hand side and temporal blocking, and grid sizes up to 18432², the largest that fits in device memory. SM clock locked at 3090 MHz, 300 ms warm-up.</p>
+            <p>All ten time steps are timed with CUDA events, including convergence checks. All reported values are medians over repeats.</p>
+            <p><strong>No hardware counters.</strong> Nsight Compute failed with a permission error on this driver setup, so cache residency is inferred from effective bandwidth (bytes per sweep × sweeps ÷ time) against the nominal DRAM peak.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ RESULTS: IN CACHE ============ -->
+    <section class="pad" id="results" style="padding-top:0">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="eyebrow">Results · in cache<span class="num">04 / 07</span></p>
+          <h2 class="display h2 split"><span class="ln"><span>While the grid fits in L2,</span></span><span class="ln"><span>synchronous wins.</span></span></h2>
+        </div>
+
+        <div class="statement">
+          <div class="rv"><b>10/12</b><p>Configurations where plain synchronous Jacobi is fastest. The two exceptions (N = 1024, r = 100) are within timing noise.</p></div>
+          <div class="rv rv-d1"><b><span data-count="1.78" data-dec="2">1.78</span>–2.73×</b><p>Extra sweeps D8 needs because of stale halos. D4 needs 1.35–1.59×; D1 exactly as many.</p></div>
+          <div class="rv rv-d2"><b>0.76–0.95</b><p>Best asynchronous config relative to best synchronous config, after trying three tile shapes and overlapped checks.</p></div>
+        </div>
+
+        <div class="block">
+          <div class="block-head">
+            <h3 class="display h3 rv">Speedup over synchronous, every configuration</h3>
+            <p class="rv" style="margin:0;color:var(--ink-2)">Table IV. Median of 3 runs, 32×8 tiles. Blue cells are faster than sync, red cells slower. Hover a cell for details.</p>
+          </div>
+          <div class="tbl-wrap rv"><table class="heat" id="heat"></table></div>
+          <div class="legend-ramp"><span>0.5× slower</span><span class="ramp"></span><span>1.1× faster</span><span style="margin-left:12px">s(D8) = sweep ratio of D8</span></div>
+        </div>
+
+        <div class="block figs-2">
+          <figure class="fig rv">
+            <div class="fig-head"><h3>Staleness costs sweeps</h3><div class="legend" id="lg-sweep"></div></div>
+            <div id="ch-sweep"></div>
+            <figcaption>Fig. 2. Total sweeps relative to sync (32×8 tiles), mean over both N and both sources. The ratio depends on r and D, hardly at all on N. D2/D4 heights read from the published figure.</figcaption>
+          </figure>
+          <figure class="fig rv rv-d1">
+            <div class="fig-head"><h3>Where the time actually goes</h3><div class="legend" id="lg-cost"></div></div>
+            <div id="ch-cost"></div>
+            <figcaption>Fig. 3 (left). Sync cost per sweep vs. sweeps between convergence checks M. Each host check costs ≈ 29 µs (N = 512) and 41 µs (N = 1024): <b>45% and 24%</b> of synchronous run time at M = 8.</figcaption>
+          </figure>
+        </div>
+
+        <div class="block two">
+          <div class="prose rv">
+            <h3 class="display h3" style="margin:0 0 20px">The barrier isn't the bottleneck. The host round trip is.</h3>
+            <p>Kernel launches are queued asynchronously, and global sweeps are served largely from L2: the fused sync kernel sustains <strong>580–640 GB/s</strong> at N = 1024, well above the 384 GB/s DRAM peak, consistent with a 12–16 MiB working set in the 32 MiB L2.</p>
+            <p>The block-async kernel also carries a fixed cost per launch: at N = 512, a D1 launch took ≈ 9.4 µs and a D8 launch ≈ 19.4 µs against ≈ 4.4 µs for a sync sweep. Each extra in-tile sweep costs ≈ 1.4 µs, but loading and storing the tile costs about two synchronous sweeps.</p>
+            <p>The synchronization that costs time, the host round trip that decides convergence, is something inter-block asynchrony can't remove.</p>
+          </div>
+          <figure class="fig rv rv-d1">
+            <div class="fig-head"><h3>D8 speedup vs. check interval</h3><div class="legend" id="lg-d8"></div></div>
+            <div id="ch-d8"></div>
+            <figcaption>Fig. 3 (right). Median D8 speedup across r. At M = 128 and 1024 runs overshoot convergence, so those points measure throughput, not time to solution. Interior points read from the published figure.</figcaption>
+          </figure>
+        </div>
+
+        <div class="block">
+          <div class="block-head">
+            <h3 class="display h3 rv">Best of each family, in cache</h3>
+            <p class="rv" style="margin:0;color:var(--ink-2)">Table V. Gaussian source, 5 repeats, 300 ms warm-up. B = blocking checks, O = overlapped checks.</p>
+          </div>
+          <div class="tbl-wrap rv"><table id="tbl-v"></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ BEYOND L2 (dark) ============ -->
+    <section class="dark pad" id="beyond">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="eyebrow">Results · beyond L2<span class="num">05 / 07</span></p>
+          <h2 class="display h2 split"><span class="ln"><span>Past 32 MiB,</span></span><span class="ln"><span>the picture flips.</span></span></h2>
+        </div>
+
+        <div class="figs-2">
+          <figure class="fig rv">
+            <div class="fig-head"><h3>Effective bandwidth, fused sync</h3><div class="legend" id="lg-bw"></div></div>
+            <div id="ch-bw"></div>
+            <figcaption>Fig. 4. 12 bytes per point per sweep. Above the DRAM peak, data must come from L2; beyond N = 1024 the kernel is DRAM-bound at 253–291 GB/s (66–76% of peak). Read from the published figure.</figcaption>
+          </figure>
+          <div class="prose rv rv-d1">
+            <p style="margin-top:0">Once the grid outgrows L2, the synchronous kernel becomes <strong>bandwidth-bound</strong>. Kernels that sweep several times per pass through device memory now have a real advantage, and both temporal blocking and block-asynchronous relaxation overtake the synchronous kernel.</p>
+            <p>The speedups did <strong>not</strong> keep growing with N. From 2048² to 18432² the working set grows 81×, yet speedups stay inside a flat band. Beyond L2 there is no further cache level to fall out of.</p>
+            <p>The two factors of S = 1/(c·s) explain why: <strong>s</strong> is fixed by the numerics (D8@32×16 needs exactly 1.738× the sync sweeps at r = 10 for every N from 1024 to 16384), and <strong>c</strong> is fixed by the memory regime (0.39–0.42 for D8, 0.71–0.76 for T4).</p>
+          </div>
+        </div>
+
+        <figure class="fig block rv">
+          <div class="fig-head">
+            <h3>Speedup over fused sync vs. grid size</h3>
+            <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+              <div class="legend" id="lg-tb"></div>
+              <div class="seg" data-ctrl="tb-r"><button aria-pressed="true" data-v="1">r = 1</button><button aria-pressed="false" data-v="10">r = 10</button><button aria-pressed="false" data-v="100">r = 100</button></div>
+            </div>
+          </div>
+          <div id="ch-tb"></div>
+          <figcaption>Fig. 5 / Table VII. Exact temporal blocking vs. the best block-asynchronous configuration, Gaussian source. The peak at N = 4096, r = 1 comes from an unexplained but reproducible slowdown of the sync baseline (221 GB/s), not a faster kernel. r = 100 was not run at N ≥ 16384.</figcaption>
+        </figure>
+
+        <div class="block statement" style="border-color:var(--snow)">
+          <div class="rv"><b>≈1.32×</b><p>Exact temporal blocking over the fused sync baseline, out of cache, with no staleness at all.</p></div>
+          <div class="rv rv-d1"><b>1.45–1.58×</b><p>Block-asynchronous over the same baseline at r = 10 (1.44–1.48× at r = 100, 1.07–1.44× at r = 1).</p></div>
+          <div class="rv rv-d2"><b>+10–13%</b><p>What relaxing synchronization adds over temporal blocking at r ≥ 10. At r = 1 it is 16–19% <i>slower</i>.</p></div>
+        </div>
+
+        <div class="block">
+          <div class="block-head">
+            <h3 class="display h3 rv">The (c, s) plane</h3>
+            <p class="rv" style="margin:0;color:var(--ink-2)">Fig. 6 / Table VIII at r = 10. A strategy wins exactly when c·s &lt; 1. Block-async: cheap sweeps, but more of them. Temporal blocking: no extra sweeps, but nearly the full cost of a sync sweep because of redundant halo work.</p>
+          </div>
+          <figure class="fig rv">
+            <div class="fig-head"><div class="legend" id="lg-cs"></div><div class="seg" data-ctrl="cs-big"><button aria-pressed="true" data-v="0">Hide 64×64</button><button aria-pressed="false" data-v="1">Show 64×64</button></div></div>
+            <div id="ch-cs"></div>
+            <figcaption>Larger tiles reduce staleness (D4: 1.16× sweeps with 32×32 vs 1.30× with 32×16), but 64×64 tiles raised the per-sweep cost of every kernel, likely from shared-memory occupancy limits.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ OPTIMISM ============ -->
+    <section class="pad" id="optimism">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="eyebrow">How optimistic was the first result?</p>
+          <h2 class="display h2 split"><span class="ln"><span>1.76× shrank</span></span><span class="ln"><span>to 1.02–1.13×.</span></span></h2>
+        </div>
+        <div class="two" style="margin-bottom:40px">
+          <p class="lede rv" style="text-transform:none;font-size:18px;font-weight:500;letter-spacing:0">The first out-of-cache measurement looked like a clear win for asynchrony. It didn't survive a fair comparison, and how it shrank is one of the main findings.</p>
+          <div class="legend rv" id="lg-steps" style="align-self:end"></div>
+        </div>
+        <div class="steps" id="steps"></div>
+        <p class="note rv" style="margin-top:36px"><b>Takeaway.</b> When an asynchronous kernel also changes the memory access pattern, the comparison needs a synchronous baseline that changes it the same way. Fusing the right-hand side alone removed ≈ 15% of the apparent advantage; most of what remained came from temporal locality, not stale data.</p>
+
+        <div class="block">
+          <div class="block-head">
+            <h3 class="display h3 rv">Fusing the right-hand side</h3>
+            <p class="rv" style="margin:0;color:var(--ink-2)">Table VI. T<sub>unfused</sub>/T<sub>fused</sub>, Gaussian source. Sync gets 1.17–1.24× faster out of cache; D8 and T8 barely move, because they already read those arrays once per launch.</p>
+          </div>
+          <div class="tbl-wrap rv"><table id="tbl-vi"></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ POLICIES + SELECTOR (dark) ============ -->
+    <section class="dark pad" id="selector">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="eyebrow">Adaptive &amp; learned selection<span class="num">06 / 07</span></p>
+          <h2 class="display h2 split"><span class="ln"><span>Cache fit and r</span></span><span class="ln"><span>decide the winner.</span></span></h2>
+        </div>
+
+        <div class="two">
+          <figure class="fig rv">
+            <div class="fig-head"><h3>Guided policies, main matrix</h3><div class="legend" id="lg-pol"></div></div>
+            <div id="ch-pol"></div>
+            <figcaption>Table X. Total time over all 12 configurations, as overhead above two references.</figcaption>
+          </figure>
+          <div class="prose rv rv-d1">
+            <p style="margin-top:0"><strong>G-fb</strong> came within 10% of the best static strategy per configuration without being told N or r, and beat every static strategy in one configuration. At r = 100 it changed D between 186 and 212 times per run, each change reacting to the residual disturbance of the previous one.</p>
+            <p>Out of cache it was <strong>1.17–1.54× faster</strong> than the unfused sync kernel at N = 2048 and 4096, within 10–15% of the best static choice. In cache it lost (0.69–0.84×) because its search pushes towards larger D, which doesn't pay there. A version that can fall back to synchronous behaviour would recover much of that.</p>
+          </div>
+        </div>
+
+        <div class="block two">
+          <div class="rv">
+            <p class="eyebrow" style="margin:0 0 16px">Depth-2 decision tree, 16 configs</p>
+            <div class="tree">
+              <svg viewBox="0 0 520 300" role="img" aria-label="Decision tree: if working set over L2 is at most 1.25, choose synchronous. Otherwise if r is at most 5.5 choose temporal blocking, else block-asynchronous.">
+                <g stroke="#77766f" stroke-width="1.5" fill="none"><path d="M260 62 L120 130"/><path d="M260 62 L380 130"/><path d="M380 186 L290 236"/><path d="M380 186 L460 236"/></g>
+                <rect x="160" y="14" width="200" height="48" fill="#141413" stroke="#f4f3ef" stroke-width="1.5"/>
+                <text x="260" y="36" fill="#f4f3ef" font-size="13" font-weight="700" text-anchor="middle">working set / L2 ≤ 1.25 ?</text>
+                <text x="260" y="53" fill="#77766f" font-size="10" text-anchor="middle">16·N² bytes ÷ 32 MiB</text>
+                <text x="168" y="98" fill="#b9b8b1" font-size="11">yes</text><text x="330" y="98" fill="#b9b8b1" font-size="11">no</text>
+                <rect x="40" y="130" width="160" height="56" fill="#3987e5"/>
+                <text x="120" y="155" fill="#050505" font-size="14" font-weight="800" text-anchor="middle">SYNCHRONOUS</text>
+                <text x="120" y="173" fill="#050505" font-size="10" text-anchor="middle">fits in cache</text>
+                <rect x="290" y="138" width="180" height="48" fill="#141413" stroke="#f4f3ef" stroke-width="1.5"/>
+                <text x="380" y="167" fill="#f4f3ef" font-size="13" font-weight="700" text-anchor="middle">r ≤ 5.5 ?</text>
+                <text x="315" y="216" fill="#b9b8b1" font-size="11">yes</text><text x="430" y="216" fill="#b9b8b1" font-size="11">no</text>
+                <rect x="210" y="236" width="160" height="56" fill="#199e70"/>
+                <text x="290" y="260" fill="#050505" font-size="13" font-weight="800" text-anchor="middle">TEMPORAL BLOCK.</text>
+                <text x="290" y="278" fill="#050505" font-size="10" text-anchor="middle">short steps</text>
+                <rect x="380" y="236" width="138" height="56" fill="#d95926"/>
+                <text x="449" y="260" fill="#050505" font-size="13" font-weight="800" text-anchor="middle">BLOCK-ASYNC</text>
+                <text x="449" y="278" fill="#050505" font-size="10" text-anchor="middle">many iterations</text>
+              </svg>
+            </div>
+            <p style="font-size:13px;color:var(--snow-3)">Split values are midpoints between measured points. The data establish only that the switch lies between N = 1024 (ratio 0.5) and 2048 (ratio 2.0), an interval containing the physical L2 capacity, and between r = 1 and 10.</p>
+          </div>
+          <div class="rv rv-d1">
+            <pre class="code"><span class="k">X</span> = pd.DataFrame({<span class="k">"ws_over_L2"</span>: 16 * N**2 / 2**25,
+                  <span class="k">"r"</span>: r})
+<span class="k">y</span> = fam[[<span class="k">"sync"</span>, <span class="k">"temporal"</span>, <span class="k">"staleness"</span>]].idxmin(axis=1)
+<span class="k">for</span> held_out <span class="k">in</span> set(groups):   <span class="c"># config or grid size</span>
+    test = groups == held_out
+    tree = DecisionTreeClassifier(max_depth=2,
+                                  random_state=52)
+    tree.fit(X[~test], y[~test])
+    pred[test] = tree.predict(X[test])</pre>
+            <p style="font-size:14px;color:var(--snow-2);margin-top:20px">On the main matrix, a tree on (N, source, r) picked the fastest static strategy every time, but only two configurations had a non-sync label, so a second selector was trained on the 16-config extension dataset: classes sync (3), temporal blocking (5) and block-async (8).</p>
+          </div>
+        </div>
+
+        <figure class="fig block rv">
+          <div class="fig-head"><h3>Mean slowdown vs. the best family per configuration</h3><span class="eyebrow" style="color:var(--snow-3)">Table XI · lower is better</span></div>
+          <div id="ch-sel"></div>
+          <figcaption>Unweighted mean, so small and large grids count equally. Both leave-one-config-out mistakes happened at r = 1 right next to the cache boundary. Holding out a whole grid size drops to 10/16: the tree can interpolate, but it cannot find the cache boundary from data on only one side of it.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ============ CONCLUSION ============ -->
+    <section class="pad" id="conclusion">
+      <div class="wrap">
+        <div class="sec-head">
+          <p class="eyebrow">Conclusion<span class="num">07 / 07</span></p>
+          <h2 class="display h2 split"><span class="ln"><span>The L2 cache</span></span><span class="ln"><span>governs the answer.</span></span></h2>
+        </div>
+        <ol class="findings">
+          <li class="rv"><div><h4>RQ1 · In cache, don't relax</h4><p>While the working set fits in L2, plain synchronous Jacobi is fastest. Barriers between blocks are cheap; the costly synchronization is the host round trip for convergence checks, which inter-block asynchrony can't touch.</p></div></li>
+          <li class="rv"><div><h4>Out of cache, locality does most of the work</h4><p>Sweeping several times per pass through memory gives a step change of ≈ 1.3–1.5× that stays flat up to the largest grid that fits in memory. About 1.3× is available to an exact method with no staleness.</p></div></li>
+          <li class="rv"><div><h4>Asynchrony adds ≈ 10%, and only sometimes</h4><p>Relaxing synchronization adds 10–13% over temporal blocking when time steps need many iterations (r ≥ 10), because a one-cell halo is cheaper than redundant halo work. When steps are short (r = 1) it is 16–19% slower.</p></div></li>
+          <li class="rv"><div><h4>RQ2 · Two features predict the winner</h4><p>Working set relative to L2, and r. A depth-2 tree recovers this rule and cuts the best fixed strategy's mean slowdown by almost two-thirds (13.6% → 4.9%), but cannot extrapolate across the cache boundary.</p></div></li>
+        </ol>
+
+        <div class="block cols-3">
+          <div class="rv">
+            <h4>Practical advice</h4>
+            <ul>
+              <li>Measure the cost of convergence checks before trying to remove barriers. Checking on the device and reporting to the host less often may save more than changing the iteration.</li>
+              <li>Compare asynchronous kernels against a baseline whose memory traffic is already minimized.</li>
+              <li>Compute a block-async sweep ratio on the CPU at small N: it doesn't depend on N, and with one GPU per-sweep cost it predicts the speedup at larger sizes.</li>
+            </ul>
+          </div>
+          <div class="rv rv-d1">
+            <h4>Threats to validity</h4>
+            <ul>
+              <li>One laptop GPU; a larger L2 or different bandwidth/compute ratio moves the regime boundary.</li>
+              <li>The temporal-blocking kernel is far simpler than AN5D or EBISU; the 10–13% margin is fragile.</li>
+              <li>Not a fully asynchronous persistent kernel; cache residency inferred without counters; 3–5 repeats; small selector datasets.</li>
+            </ul>
+          </div>
+          <div class="rv rv-d2">
+            <h4>What's next</h4>
+            <ul>
+              <li>Device-side convergence detection.</li>
+              <li>State-of-the-art temporal blocking and persistent kernels (EBISU, PERKS).</li>
+              <li>Fully asynchronous variants.</li>
+              <li>Other GPUs, so a selector can learn across cache sizes rather than within one.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="dark footer">
+    <div class="wrap">
+      <div class="foot-grid">
+        <div>
+          <p class="eyebrow" style="color:var(--snow-3);margin:0 0 14px">Research project</p>
+          <p class="display h3" style="margin:0 0 18px;max-width:22ch">Separating the effects of synchronization relaxation and temporal locality in GPU iterative stencil solvers.</p>
+          <p style="color:var(--snow-2);margin:0">Vaibhav Bhatia · Independent GPU stencil research project.</p>
+        </div>
+        <div>
+          <p class="eyebrow" style="color:var(--snow-3);margin:0 0 14px">Sections</p>
+          <a href="#problem">Problem</a><a href="#method">Method</a><a href="#results">In cache</a><a href="#beyond">Beyond L2</a><a href="#selector">Selector</a>
+        </div>
+        <div>
+          <p class="eyebrow" style="color:var(--snow-3);margin:0 0 14px">Code</p>
+          <a href="https://github.com/VaibhavBhatia-0/async-stencil-jacobian" target="_blank" rel="noopener">GitHub repository ↗</a>
+          <a href="#top">Back to top ↑</a>
+        </div>
+      </div>
+      <h2 class="giant" data-parallax="0.06" aria-hidden="true">Stencil</h2>
+      <div class="foot-bottom"><span>© 2026 Vaibhav Bhatia</span><span>CUDA 13.3 · RTX 5050 Laptop GPU · float32</span></div>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script src="data.js"></script>
+  <script src="charts.js"></script>
+  <script src="sim.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
